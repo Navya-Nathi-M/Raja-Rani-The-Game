@@ -1,0 +1,1 @@
+export const PlayerAvatar = ({ name }: { name: string }) => <span>{name}</span>;

@@ -1,0 +1,1 @@
+export const Timer = () => <span>30s</span>;
