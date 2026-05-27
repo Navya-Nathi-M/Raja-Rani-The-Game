@@ -1,0 +1,1 @@
+export const LobbyPage = () => <div>Lobby (join or create room)</div>;

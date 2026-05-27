@@ -1,0 +1,1 @@
+export const RoomPage = () => <div>Room waiting for players</div>;

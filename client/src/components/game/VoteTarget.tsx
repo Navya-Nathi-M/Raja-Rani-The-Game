@@ -1,0 +1,1 @@
+export const RoomList = () => <div>Room list (placeholder)</div>;

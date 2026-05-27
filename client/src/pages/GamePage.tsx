@@ -1,0 +1,1 @@
+export const GamePage = () => <div>Game in progress</div>;

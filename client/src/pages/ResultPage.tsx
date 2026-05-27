@@ -1,0 +1,1 @@
+export const ResultPage = () => <div>Game results</div>;
