@@ -54,6 +54,18 @@ export const RoomPage = () => {
       socket.off('player-left', handlePlayerLeft);
     };
   }, [roomId]);
+    // Listen for game start
+  useEffect(() => {
+    const handleGameStarted = (updatedRoom: Room) => {
+      navigate(`/game/${updatedRoom.id}`, { state: { room: updatedRoom } });
+    };
+
+    socket.on('game-started', handleGameStarted);
+
+    return () => {
+      socket.off('game-started', handleGameStarted);
+    };
+  }, [navigate]);
 
   const hostPlayer = room?.players[0]; // first player is host
   const isHost = hostPlayer?.socketId === socket.id;
