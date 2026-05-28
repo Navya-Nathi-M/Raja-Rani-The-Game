@@ -15,7 +15,7 @@ export const LobbyPage = () => {
     }
     socket.emit('create-room', playerName.trim());
     socket.once('room-created', (room) => {
-      navigate(`/room/${room.id}`);
+      navigate(`/room/${room.id}`, { state: { room } });
     });
     socket.once('error', (msg) => setError(msg));
   };
