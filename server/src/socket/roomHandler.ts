@@ -87,6 +87,36 @@ export const setupRoomHandlers = (socket: Socket) => {
       }
     });
   });
+    // Host starts the game
+  socket.on('start-game', (roomId: string) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+      socket.emit('error', 'Room not found');
+      return;
+    }
+    // Only the first player (host) can start
+    if (room.players[0]?.socketId !== socket.id) {
+      socket.emit('error', 'Only the host can start the game');
+      return;
+    }
+    if (room.players.length < 2) {
+      socket.emit('error', 'Need at least 2 players to start');
+      return;
+    }
+    if (room.gameStarted) {
+      socket.emit('error', 'Game already started');
+      return;
+    }
+
+    room.gameStarted = true;
+    room.currentRound = 1;
+
+    // For now, just broadcast that the game has started
+    // Later we'll assign roles here
+    socket.emit('game-started', room);
+    socket.to(roomId).emit('game-started', room);
+    console.log(`Game started in room ${roomId}`);
+  });
 };
 
 // Simple random room ID generator (6 alphanumeric chars)
