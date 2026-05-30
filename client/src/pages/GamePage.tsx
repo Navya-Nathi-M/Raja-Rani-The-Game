@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../services/socket';
-import { Room } from '../types/game';
+import { Room, Role } from '../types/game';
 
 export const GamePage = () => {
   const location = useLocation();
@@ -10,18 +10,36 @@ export const GamePage = () => {
 
   const initialRoom: Room | null = location.state?.room ?? null;
   const [room, setRoom] = useState<Room | null>(initialRoom);
+  const [myRole, setMyRole] = useState<Role | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!initialRoom) {
+      setError('No game data. Redirecting to lobby...');
       setTimeout(() => navigate('/lobby'), 2000);
     }
   }, [initialRoom, navigate]);
 
+  // Listen for private role assignment
+  useEffect(() => {
+    const handleYourRole = (role: Role) => {
+      setMyRole(role);
+    };
+
+    socket.on('your-role', handleYourRole);
+
+    return () => {
+      socket.off('your-role', handleYourRole);
+    };
+  }, []);
+
+  if (error) {
+    return <div className="p-8 text-red-500">{error}</div>;
+  }
+
   if (!room) {
     return <div className="p-8">Loading game...</div>;
   }
-
-  const myPlayer = room.players.find((p) => p.socketId === socket.id);
 
   return (
     <div className="p-8 max-w-lg mx-auto">
@@ -40,16 +58,27 @@ export const GamePage = () => {
         ))}
       </div>
 
-      {myPlayer && (
-        <div className="border rounded p-4 bg-yellow-50">
-          <p className="text-center text-lg">
-            Your role: <span className="font-bold">{myPlayer.role ?? 'Not assigned yet'}</span>
+      <div className="border rounded p-4 bg-yellow-50 mb-6">
+        <p className="text-center text-lg">
+          Your role:{' '}
+          {myRole ? (
+            <span className="font-bold">{myRole}</span>
+          ) : (
+            <span className="italic text-gray-400">Waiting for assignment...</span>
+          )}
+        </p>
+      </div>
+
+      {myRole === 'Police' && (
+        <div className="border rounded p-4 bg-blue-50 mb-6">
+          <p className="text-center">
+            You are the <span className="font-bold">Police</span>! Soon you will reveal yourself and find the Thief.
           </p>
         </div>
       )}
 
-      <p className="text-center text-gray-400 italic mt-4">
-        Waiting for roles to be assigned...
+      <p className="text-center text-gray-400 italic">
+        {myRole ? 'Waiting for the next phase...' : 'Roles are being assigned...'}
       </p>
     </div>
   );
