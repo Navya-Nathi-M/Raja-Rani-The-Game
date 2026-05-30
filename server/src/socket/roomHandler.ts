@@ -1,5 +1,6 @@
 import { Socket } from 'socket.io';
 import { Room, Player } from '../types';
+import { assignRoles } from '../game/RoleAssigner';
 
 // In-memory storage (no database yet)
 export const rooms = new Map<string, Room>();
@@ -8,7 +9,7 @@ export const setupRoomHandlers = (socket: Socket) => {
 
   // Create a new room and join it
   socket.on('create-room', (playerName: string) => {
-    const roomId = generateRoomId();   // random 6-char code
+    const roomId = generateRoomId();
     const room: Room = {
       id: roomId,
       players: [],
@@ -28,7 +29,6 @@ export const setupRoomHandlers = (socket: Socket) => {
     rooms.set(roomId, room);
     socket.join(roomId);
 
-    // Send the room state to the new host
     socket.emit('room-created', room);
     console.log(`Room ${roomId} created by ${playerName}`);
   });
@@ -59,42 +59,18 @@ export const setupRoomHandlers = (socket: Socket) => {
     room.players.push(player);
     socket.join(roomId);
 
-    // Notify everyone in the room (including the new player)
-    socket.emit('room-joined', room);            // to the new player
-    socket.to(roomId).emit('player-joined', player); // to existing players
+    socket.emit('room-joined', room);
+    socket.to(roomId).emit('player-joined', player);
     console.log(`${playerName} joined room ${roomId}`);
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    // Find and remove player from any room they were in
-    rooms.forEach((room, roomId) => {
-      const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
-      if (playerIndex !== -1) {
-        const player = room.players[playerIndex];
-        room.players.splice(playerIndex, 1);
-
-        socket.to(roomId).emit('player-left', player);
-
-        // If room is empty, delete it
-        if (room.players.length === 0) {
-          rooms.delete(roomId);
-          console.log(`Room ${roomId} deleted (empty)`);
-        } else {
-          // Optionally, update host if the host left (we'll handle later)
-          console.log(`${player.name} left room ${roomId}`);
-        }
-      }
-    });
-  });
-    // Host starts the game
+  // Host starts the game
   socket.on('start-game', (roomId: string) => {
     const room = rooms.get(roomId);
     if (!room) {
       socket.emit('error', 'Room not found');
       return;
     }
-    // Only the first player (host) can start
     if (room.players[0]?.socketId !== socket.id) {
       socket.emit('error', 'Only the host can start the game');
       return;
@@ -108,18 +84,50 @@ export const setupRoomHandlers = (socket: Socket) => {
       return;
     }
 
+    // Assign roles
+    room.players = assignRoles(room.players);
     room.gameStarted = true;
     room.currentRound = 1;
 
-    // For now, just broadcast that the game has started
-    // Later we'll assign roles here
-    socket.emit('game-started', room);
-    socket.to(roomId).emit('game-started', room);
+    // io instance from socket
+    const io = socket.nsp.server;
+
+    // Send private role to each player
+    room.players.forEach((player) => {
+      io.to(player.socketId).emit('your-role', player.role);
+    });
+
+    // Broadcast game-start with roles hidden
+    const sanitisedRoom = {
+      ...room,
+      players: room.players.map(({ role, ...rest }) => rest),
+    };
+
+    io.to(roomId).emit('game-started', sanitisedRoom);
     console.log(`Game started in room ${roomId}`);
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    rooms.forEach((room, roomId) => {
+      const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+      if (playerIndex !== -1) {
+        const player = room.players[playerIndex];
+        room.players.splice(playerIndex, 1);
+
+        socket.to(roomId).emit('player-left', player);
+
+        if (room.players.length === 0) {
+          rooms.delete(roomId);
+          console.log(`Room ${roomId} deleted (empty)`);
+        } else {
+          console.log(`${player.name} left room ${roomId}`);
+        }
+      }
+    });
   });
 };
 
-// Simple random room ID generator (6 alphanumeric chars)
 function generateRoomId(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
