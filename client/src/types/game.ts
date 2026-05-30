@@ -1,4 +1,6 @@
-export type Role = 'Police' | 'Thief' | 'King' | 'Queen' | 'Bishop' | 'MilkMan' | 'Gardener' | 'Farmer';
+export type Role = 'Police' | 'Thief' | 'Civilian' | 'Doctor' | 'Actor' | 'Chor' | 'Mama' | 'Don';
+
+export type GamePhase = 'lobby' | 'role-assignment' | 'police-reveal' | 'accusation' | 'verdict' | 'game-over';
 
 export interface Player {
   id: string;
@@ -14,4 +16,5 @@ export interface Room {
   maxPlayers: number;
   gameStarted: boolean;
   currentRound: number;
+  phase: GamePhase;
 }
