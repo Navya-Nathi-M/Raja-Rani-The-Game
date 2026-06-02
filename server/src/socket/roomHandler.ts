@@ -117,6 +117,21 @@ export const setupRoomHandlers = (socket: Socket) => {
     socket.to(roomId).emit('game-started', room);
     console.log(`Game started in room ${roomId}`);
   });
+    // Chat message in room
+  socket.on('chat-message', (roomId: string, message: string) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const sender = room.players.find(p => p.socketId === socket.id);
+    if (!sender) return;
+    const chatData = {
+      senderId: socket.id,
+      senderName: sender.name,
+      message,
+      timestamp: Date.now(),
+    };
+    socket.to(roomId).emit('chat-message', chatData);     // to others
+    socket.emit('chat-message', chatData);                // back to sender
+  });
 };
 
 // Simple random room ID generator (6 alphanumeric chars)
