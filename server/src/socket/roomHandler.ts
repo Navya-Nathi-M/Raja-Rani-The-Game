@@ -1,20 +1,20 @@
 import { Socket } from 'socket.io';
-import { Room, Player } from '../types';
+import { Room, Player, GamePhase } from '../types';
+import { assignRoles } from '../game/RoleAssigner';
 
-// In-memory storage (no database yet)
 export const rooms = new Map<string, Room>();
 
 export const setupRoomHandlers = (socket: Socket) => {
 
-  // Create a new room and join it
   socket.on('create-room', (playerName: string) => {
-    const roomId = generateRoomId();   // random 6-char code
+    const roomId = generateRoomId();
     const room: Room = {
       id: roomId,
       players: [],
       maxPlayers: 8,
       gameStarted: false,
       currentRound: 0,
+      phase: 'lobby',
     };
 
     const player: Player = {
@@ -22,18 +22,17 @@ export const setupRoomHandlers = (socket: Socket) => {
       name: playerName,
       socketId: socket.id,
       points: 0,
+      ready: false,
     };
 
     room.players.push(player);
     rooms.set(roomId, room);
     socket.join(roomId);
 
-    // Send the room state to the new host
     socket.emit('room-created', room);
     console.log(`Room ${roomId} created by ${playerName}`);
   });
 
-  // Join an existing room
   socket.on('join-room', (roomId: string, playerName: string) => {
     const room = rooms.get(roomId);
     if (!room) {
@@ -54,47 +53,35 @@ export const setupRoomHandlers = (socket: Socket) => {
       name: playerName,
       socketId: socket.id,
       points: 0,
+      ready: false,
     };
 
     room.players.push(player);
     socket.join(roomId);
 
-    // Notify everyone in the room (including the new player)
-    socket.emit('room-joined', room);            // to the new player
-    socket.to(roomId).emit('player-joined', player); // to existing players
+    socket.emit('room-joined', room);
+    socket.to(roomId).emit('player-joined', player);
     console.log(`${playerName} joined room ${roomId}`);
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    // Find and remove player from any room they were in
-    rooms.forEach((room, roomId) => {
-      const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
-      if (playerIndex !== -1) {
-        const player = room.players[playerIndex];
-        room.players.splice(playerIndex, 1);
+  // Toggle ready status
+  socket.on('player-ready', (roomId: string) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (!player) return;
+    player.ready = !player.ready;
 
-        socket.to(roomId).emit('player-left', player);
-
-        // If room is empty, delete it
-        if (room.players.length === 0) {
-          rooms.delete(roomId);
-          console.log(`Room ${roomId} deleted (empty)`);
-        } else {
-          // Optionally, update host if the host left (we'll handle later)
-          console.log(`${player.name} left room ${roomId}`);
-        }
-      }
-    });
+    const io = socket.nsp.server;
+    io.to(roomId).emit('player-ready-updated', { playerId: player.id, ready: player.ready });
   });
-    // Host starts the game
+
   socket.on('start-game', (roomId: string) => {
     const room = rooms.get(roomId);
     if (!room) {
       socket.emit('error', 'Room not found');
       return;
     }
-    // Only the first player (host) can start
     if (room.players[0]?.socketId !== socket.id) {
       socket.emit('error', 'Only the host can start the game');
       return;
@@ -108,16 +95,45 @@ export const setupRoomHandlers = (socket: Socket) => {
       return;
     }
 
+    // Check all players are ready
+    const allReady = room.players.every(p => p.ready);
+    if (!allReady) {
+      socket.emit('error', 'All players must be ready before starting');
+      return;
+    }
+
+    room.players = assignRoles(room.players);
     room.gameStarted = true;
     room.currentRound = 1;
+    room.phase = 'role-assignment';
 
-    // For now, just broadcast that the game has started
-    // Later we'll assign roles here
-    socket.emit('game-started', room);
-    socket.to(roomId).emit('game-started', room);
+    const io = socket.nsp.server;
+
+    room.players.forEach((player) => {
+      io.to(player.socketId).emit('your-role', player.role);
+    });
+
+    const sanitisedRoom = {
+      ...room,
+      players: room.players.map(({ role, ...rest }) => rest),
+    };
+    io.to(roomId).emit('game-started', sanitisedRoom);
     console.log(`Game started in room ${roomId}`);
+
+    setTimeout(() => {
+      room.phase = 'police-reveal';
+      const police = room.players.find(p => p.role === 'Police');
+      io.to(roomId).emit('phase-changed', {
+        phase: 'police-reveal',
+        data: {
+          policeName: police?.name,
+          policeId: police?.id,
+        },
+      });
+    }, 3000);
   });
-    // Chat message in room
+
+  // Chat message
   socket.on('chat-message', (roomId: string, message: string) => {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -129,12 +145,28 @@ export const setupRoomHandlers = (socket: Socket) => {
       message,
       timestamp: Date.now(),
     };
-    socket.to(roomId).emit('chat-message', chatData);     // to others
-    socket.emit('chat-message', chatData);                // back to sender
+    socket.to(roomId).emit('chat-message', chatData);
+    socket.emit('chat-message', chatData);
+  });
+
+  socket.on('disconnect', () => {
+    rooms.forEach((room, roomId) => {
+      const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+      if (playerIndex !== -1) {
+        const player = room.players[playerIndex];
+        room.players.splice(playerIndex, 1);
+        socket.to(roomId).emit('player-left', player);
+        if (room.players.length === 0) {
+          rooms.delete(roomId);
+          console.log(`Room ${roomId} deleted (empty)`);
+        } else {
+          console.log(`${player.name} left room ${roomId}`);
+        }
+      }
+    });
   });
 };
 
-// Simple random room ID generator (6 alphanumeric chars)
 function generateRoomId(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
