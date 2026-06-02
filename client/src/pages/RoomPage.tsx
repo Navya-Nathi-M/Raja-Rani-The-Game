@@ -21,6 +21,7 @@ export const RoomPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [error, setError] = useState('');
   const [isReady, setIsReady] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!initialRoom) {
@@ -29,7 +30,6 @@ export const RoomPage = () => {
     }
   }, [initialRoom, navigate]);
 
-  // When room loads, sync my ready state from server (if already in room data)
   useEffect(() => {
     if (room) {
       const me = room.players.find(p => p.socketId === socket.id);
@@ -37,7 +37,6 @@ export const RoomPage = () => {
     }
   }, [room]);
 
-  // Listen for player join/leave
   useEffect(() => {
     if (!roomId) return;
     const handlePlayerJoined = (player: Player) => {
@@ -54,7 +53,6 @@ export const RoomPage = () => {
     };
   }, [roomId]);
 
-  // Listen for game start
   useEffect(() => {
     const handleGameStarted = (updatedRoom: Room) => {
       navigate(`/game/${updatedRoom.id}`, { state: { room: updatedRoom } });
@@ -63,7 +61,6 @@ export const RoomPage = () => {
     return () => { socket.off('game-started', handleGameStarted); };
   }, [navigate]);
 
-  // Chat
   useEffect(() => {
     const handleChatMessage = (msg: ChatMessage) => {
       setChatMessages(prev => [...prev, msg]);
@@ -72,7 +69,6 @@ export const RoomPage = () => {
     return () => { socket.off('chat-message', handleChatMessage); };
   }, []);
 
-  // Listen for ready updates from others
   useEffect(() => {
     const handleReadyUpdate = ({ playerId, ready }: { playerId: string; ready: boolean }) => {
       setRoom(prev => {
@@ -101,8 +97,15 @@ export const RoomPage = () => {
 
   const toggleReady = () => {
     socket.emit('player-ready', roomId);
-    // Optimistic update (server will confirm)
     setIsReady(prev => !prev);
+  };
+
+  const copyRoomCode = () => {
+    if (roomId) {
+      navigator.clipboard.writeText(roomId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
   };
 
   if (error) return <div className="p-8 text-red-500">{error}</div>;
@@ -110,7 +113,15 @@ export const RoomPage = () => {
 
   return (
     <div className="p-8 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-2">Room: {room.id}</h1>
+      <div className="flex items-center gap-2 mb-2">
+        <h1 className="text-2xl font-bold">Room: {room.id}</h1>
+        <button
+          onClick={copyRoomCode}
+          className="text-sm bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
       <p className="text-gray-500 mb-4">Players: {room.players.length} / {room.maxPlayers}</p>
 
       <div className="border rounded p-4 mb-6">
@@ -129,7 +140,6 @@ export const RoomPage = () => {
         ))}
       </div>
 
-      {/* Ready toggle for current player */}
       <div className="mb-4">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -160,7 +170,6 @@ export const RoomPage = () => {
         </p>
       )}
 
-      {/* Chat */}
       <div className="border rounded p-4">
         <h3 className="font-semibold mb-2">Room Chat</h3>
         <div className="h-40 overflow-y-auto border rounded p-2 mb-2 bg-gray-50">
