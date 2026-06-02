@@ -1,4 +1,4 @@
-export type Role = 'Police' | 'Thief' | 'King' | 'Queen' | 'Bishop' | 'MilkMan' | 'Gardener' | 'Farmer';
+export type Role = 'Police' | 'Thief' | 'Civilian' | 'Doctor' | 'Actor' | 'Chor' | 'Mama' | 'Don';
 
 export interface Player {
   id: string;
@@ -6,6 +6,15 @@ export interface Player {
   socketId: string;
   role?: Role;
   points: number;
+  ready: boolean;
+}
+
+export interface RoundRecord {
+  round: number;
+  policeName: string;
+  accusedName: string;
+  accusedRole: Role;
+  isCorrect: boolean;
 }
 
 export interface Room {
@@ -14,4 +23,6 @@ export interface Room {
   maxPlayers: number;
   gameStarted: boolean;
   currentRound: number;
+  phase: string;
+  roundHistory: RoundRecord[];
 }
