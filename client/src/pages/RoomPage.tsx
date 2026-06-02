@@ -83,6 +83,15 @@ export const RoomPage = () => {
     return () => { socket.off('player-ready-updated', handleReadyUpdate); };
   }, []);
 
+  // Listen for a forced leave confirmation from server
+  useEffect(() => {
+    const handleLeftRoom = () => {
+      navigate('/lobby');
+    };
+    socket.on('left-room', handleLeftRoom);
+    return () => { socket.off('left-room', handleLeftRoom); };
+  }, [navigate]);
+
   const hostPlayer = room?.players[0];
   const isHost = hostPlayer?.socketId === socket.id;
   const allReady = room?.players.every(p => p.ready) ?? false;
@@ -106,6 +115,10 @@ export const RoomPage = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }
+  };
+
+  const handleLeaveRoom = () => {
+    socket.emit('leave-room', roomId);
   };
 
   if (error) return <div className="p-8 text-red-500">{error}</div>;
@@ -156,7 +169,7 @@ export const RoomPage = () => {
         <button
           onClick={handleStartGame}
           disabled={!allReady}
-          className={`px-4 py-2 rounded w-full mb-6 text-white ${
+          className={`px-4 py-2 rounded w-full mb-3 text-white ${
             allReady ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-400 cursor-not-allowed'
           }`}
         >
@@ -165,11 +178,20 @@ export const RoomPage = () => {
       )}
 
       {!isHost && (
-        <p className="text-center text-gray-400 italic mb-6">
+        <p className="text-center text-gray-400 italic mb-3">
           Waiting for host to start the game...
         </p>
       )}
 
+      {/* Leave Room button */}
+      <button
+        onClick={handleLeaveRoom}
+        className="w-full bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded mb-6"
+      >
+        Leave Room
+      </button>
+
+      {/* Chat section */}
       <div className="border rounded p-4">
         <h3 className="font-semibold mb-2">Room Chat</h3>
         <div className="h-40 overflow-y-auto border rounded p-2 mb-2 bg-gray-50">
