@@ -1,5 +1,6 @@
-// Shared game types (duplicate in client for now)
-export type Role = 'Police' | 'Thief' | 'King' | 'Queen' | 'Bishop' | 'MilkMan' | 'Gardener' | 'Farmer'; // example roles
+export type Role = 'Police' | 'Thief' | 'Civilian' | 'Doctor' | 'Actor' | 'Chor' | 'Mama' | 'Don';
+
+export type GamePhase = 'lobby' | 'role-assignment' | 'police-reveal' | 'accusation' | 'verdict' | 'game-over';
 
 export interface Player {
   id: string;
@@ -7,6 +8,7 @@ export interface Player {
   socketId: string;
   role?: Role;
   points: number;
+  ready: boolean;
 }
 
 export interface Room {
@@ -15,4 +17,5 @@ export interface Room {
   maxPlayers: number;
   gameStarted: boolean;
   currentRound: number;
+  phase: GamePhase;
 }
