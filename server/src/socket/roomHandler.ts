@@ -164,6 +164,30 @@ export const setupRoomHandlers = (socket: Socket) => {
         }
       }
     });
+      // Leave room manually
+  socket.on('leave-room', (roomId: string) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
+    if (playerIndex === -1) return;
+
+    const player = room.players[playerIndex];
+    room.players.splice(playerIndex, 1);
+    socket.leave(roomId);
+
+    const io = socket.nsp.server;
+    // Notify the leaving player first
+    socket.emit('left-room');
+    // Then notify remaining players
+    io.to(roomId).emit('player-left', player);
+
+    if (room.players.length === 0) {
+      rooms.delete(roomId);
+      console.log(`Room ${roomId} deleted (empty)`);
+    } else {
+      console.log(`${player.name} left room ${roomId}`);
+    }
+  });
   });
 };
 
