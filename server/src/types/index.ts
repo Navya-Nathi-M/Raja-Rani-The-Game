@@ -11,6 +11,14 @@ export interface Player {
   ready: boolean;
 }
 
+export interface RoundRecord {
+  round: number;
+  policeName: string;
+  accusedName: string;
+  accusedRole: Role;
+  isCorrect: boolean;
+}
+
 export interface Room {
   id: string;
   players: Player[];
@@ -18,4 +26,5 @@ export interface Room {
   gameStarted: boolean;
   currentRound: number;
   phase: GamePhase;
+  roundHistory: RoundRecord[];
 }
